@@ -1,0 +1,639 @@
+openapi: 3.0.3
+info:
+  title: Zadez Food API
+  version: 1.0.0
+  description: |
+    REST API for multi-restaurant menu and ordering. Namespaced under `/api/v1`.
+servers:
+  - url: https://example.com/api/v1
+    description: Production
+  - url: http://localhost:8000/api/v1
+    description: Local development
+components:
+  securitySchemes:
+    sanctumToken:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: Bearer token issued via Laravel Sanctum.
+  parameters:
+    RestaurantSlug:
+      name: restaurant_slug
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Public slug or subdomain identifier for the restaurant.
+  schemas:
+    ApiResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          nullable: true
+    PaginationMeta:
+      type: object
+      properties:
+        total:
+          type: integer
+        per_page:
+          type: integer
+        current_page:
+          type: integer
+        last_page:
+          type: integer
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        remember:
+          type: boolean
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+        restaurant_id:
+          type: integer
+        branch_id:
+          nullable: true
+          type: integer
+    Category:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+        image_url:
+          type: string
+          format: uri
+        active:
+          type: boolean
+        sort_order:
+          type: integer
+    OptionItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        price:
+          type: number
+          format: float
+        active:
+          type: boolean
+    OptionGroup:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        min:
+          type: integer
+        max:
+          type: integer
+        required:
+          type: boolean
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OptionItem'
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+          format: float
+        image_url:
+          type: string
+          format: uri
+        category_id:
+          type: integer
+        option_groups:
+          type: array
+          items:
+            $ref: '#/components/schemas/OptionGroup'
+    CartItemOption:
+      type: object
+      properties:
+        option_group_id:
+          type: integer
+        option_item_id:
+          type: integer
+        price:
+          type: number
+    CartItem:
+      type: object
+      properties:
+        product_id:
+          type: integer
+        quantity:
+          type: integer
+        options:
+          type: array
+          items:
+            $ref: '#/components/schemas/CartItemOption'
+    CouponApplyRequest:
+      type: object
+      required: [code, restaurant_id]
+      properties:
+        code:
+          type: string
+        restaurant_id:
+          type: integer
+        order_subtotal:
+          type: number
+    CheckoutRequest:
+      type: object
+      required: [restaurant_id, branch_id, customer_name, customer_phone, type, items, payment_method]
+      properties:
+        restaurant_id:
+          type: integer
+        branch_id:
+          type: integer
+        customer_name:
+          type: string
+        customer_phone:
+          type: string
+        type:
+          type: string
+          enum: [delivery, pickup]
+        address:
+          type: string
+          description: Required for delivery orders.
+        notes:
+          type: string
+        coupon_code:
+          type: string
+        payment_method:
+          type: string
+          enum: [cod, paymob, fawry, vodafone_cash]
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CartItem'
+    Order:
+      type: object
+      properties:
+        id:
+          type: integer
+        order_number:
+          type: string
+        status:
+          type: string
+          enum: [pending, confirmed, preparing, ready, on_the_way, completed, cancelled, waiting_payment]
+        subtotal:
+          type: number
+        tax:
+          type: number
+        delivery_fee:
+          type: number
+        discount:
+          type: number
+        total:
+          type: number
+        payment_status:
+          type: string
+          enum: [unpaid, paid, waiting_payment]
+        payment_method:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CartItem'
+        customer_name:
+          type: string
+        customer_phone:
+          type: string
+        address:
+          type: string
+        branch:
+          type: string
+    StatusUpdateRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [pending, confirmed, preparing, ready, on_the_way, completed, cancelled, waiting_payment]
+paths:
+  /admin/login:
+    post:
+      summary: Admin login
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Successful login
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '429':
+          description: Rate limited
+  /admin/logout:
+    post:
+      summary: Admin logout
+      tags: [Auth]
+      security: [{ sanctumToken: [] }]
+      responses:
+        '200': { description: Logged out }
+  /admin/me:
+    get:
+      summary: Get authenticated admin profile
+      tags: [Auth]
+      security: [{ sanctumToken: [] }]
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+  /menu/{restaurant_slug}/categories:
+    get:
+      summary: Public categories for a restaurant
+      tags: [Menu]
+      parameters:
+        - $ref: '#/components/parameters/RestaurantSlug'
+      responses:
+        '200':
+          description: Category list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+  /menu/{restaurant_slug}/products:
+    get:
+      summary: Public products for a restaurant
+      tags: [Menu]
+      parameters:
+        - $ref: '#/components/parameters/RestaurantSlug'
+        - in: query
+          name: category_id
+          schema:
+            type: integer
+        - in: query
+          name: q
+          schema:
+            type: string
+        - in: query
+          name: sort
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Product list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+  /menu/{restaurant_slug}/product/{id}:
+    get:
+      summary: Public product details
+      tags: [Menu]
+      parameters:
+        - $ref: '#/components/parameters/RestaurantSlug'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Product with option groups
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+  /orders:
+    post:
+      summary: Customer checkout
+      tags: [Orders]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckoutRequest'
+      responses:
+        '201':
+          description: Order created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+  /orders/{order_number}:
+    get:
+      summary: Get order by public number
+      tags: [Orders]
+      parameters:
+        - name: order_number
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Order detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+  /admin/orders:
+    get:
+      summary: Admin order list
+      tags: [Admin Orders]
+      security: [{ sanctumToken: [] }]
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+        - in: query
+          name: date
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Paginated orders
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Order'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+  /admin/orders/{id}/status:
+    patch:
+      summary: Update order status
+      tags: [Admin Orders]
+      security: [{ sanctumToken: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusUpdateRequest'
+      responses:
+        '200': { description: Status updated }
+  /categories:
+    get:
+      summary: Admin categories
+      tags: [Admin Categories]
+      security: [{ sanctumToken: [] }]
+      responses:
+        '200':
+          description: Paginated categories
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Category'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+    post:
+      summary: Create category
+      tags: [Admin Categories]
+      security: [{ sanctumToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Category'
+      responses:
+        '201': { description: Created }
+  /categories/{id}:
+    get:
+      summary: Show category
+      tags: [Admin Categories]
+      security: [{ sanctumToken: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200': { description: Category returned }
+    put:
+      summary: Update category
+      tags: [Admin Categories]
+      security: [{ sanctumToken: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Category'
+      responses:
+        '200': { description: Updated }
+    delete:
+      summary: Delete category
+      tags: [Admin Categories]
+      security: [{ sanctumToken: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204': { description: Deleted }
+  /products:
+    get:
+      summary: Admin products
+      tags: [Admin Products]
+      security: [{ sanctumToken: [] }]
+      responses:
+        '200':
+          description: Paginated products
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+    post:
+      summary: Create product
+      tags: [Admin Products]
+      security: [{ sanctumToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Product'
+      responses:
+        '201': { description: Created }
+  /products/{id}:
+    get:
+      summary: Show product
+      tags: [Admin Products]
+      security: [{ sanctumToken: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200': { description: Product returned }
+    put:
+      summary: Update product
+      tags: [Admin Products]
+      security: [{ sanctumToken: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Product'
+      responses:
+        '200': { description: Updated }
+    delete:
+      summary: Delete product
+      tags: [Admin Products]
+      security: [{ sanctumToken: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204': { description: Deleted }
+  /payments/paymob/init:
+    post:
+      summary: Initialize Paymob payment
+      tags: [Payments]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [order_id]
+              properties:
+                order_id:
+                  type: integer
+      responses:
+        '200':
+          description: Paymob iframe url or redirect token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  iframe_url:
+                    type: string
+    
+  /payments/paymob/webhook:
+    post:
+      summary: Paymob webhook handler
+      tags: [Payments]
+      responses:
+        '200': { description: Webhook processed }
+  /payments/manual/confirm:
+    post:
+      summary: Confirm manual payment (Fawry/Vodafone Cash)
+      tags: [Payments]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [order_id, method]
+              properties:
+                order_id:
+                  type: integer
+                method:
+                  type: string
+                  enum: [fawry, vodafone_cash]
+                reference:
+                  type: string
+                proof_image:
+                  type: string
+                  format: binary
+      responses:
+        '200': { description: Proof uploaded }
+security:
+  - sanctumToken: []

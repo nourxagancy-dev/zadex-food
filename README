@@ -1,2 +1,24 @@
 # Zadez Food
-Initial commit for Codex
+
+مخطط تنفيذي لنظام منيو إلكتروني وإدارة مطعم متعدد المطاعم (Laravel + Vue 3 + React PWA) قابل للنشر على Shared Hosting/cPanel.
+
+## المحتوى
+- `docs/system-blueprint.md`: نظرة عامة على المتطلبات، التدفقات، وتقنية التنفيذ.
+- `docs/database-schema.sql`: مخطط جداول MySQL مبدئي يدعم Multi-tenant والخيارات.
+- `docs/api-contract.md`: تعريف نقاط النهاية API v1 للوحة التحكم والعميل والمدفوعات.
+- `docs/whatsapp-flow.md`: منطق إنشاء رسالة واتساب للطلبات.
+- `docs/deployment-shared-hosting.md`: خطوات نشر النظام على استضافة مشتركة.
+- `docs/implementation-roadmap.md`: خطة تنفيذ عملية على مراحل مع مخرجات وقوائم تحقق.
+- `docs/openapi-v1.yaml`: تعريف OpenAPI 3 لنقاط النهاية الأساسية (Menu/Admin/Payments).
+- `docs/frontend-implementation-notes.md`: ملاحظات عملية لتطبيق الواجهات (Vue Admin + React PWA).
+- `backend/`: هيكل Laravel جاهز مع موديلات، كنترولرز، Routes، Migrations، وSeeder.
+- `admin-frontend/`: واجهة Vue 3 + Vite RTL بستايل Glassmorphism لشاشة الدخول ولوحة تحكم مبسطة.
+- `admin-frontend` يتضمن `/install`: شاشة توليد .env وأوامر التهيئة لبيئات Shared Hosting مع تعليمات cPanel.
+- `customer-frontend/`: واجهة React + Vite + PWA بخلفية بنفسجية RTL للمنيو، تفاصيل المنتج، السلة، والدفع.
+
+## طريقة البدء السريعة
+1. backend: `cd backend && composer install && cp .env.example .env && php artisan key:generate && php artisan migrate --seed && php artisan serve`.
+2. admin: `cd admin-frontend && npm install && npm run dev`.
+3. menu: `cd customer-frontend && npm install && npm run dev`.
+
+يمكن استخدام هذه الشجرة كبداية عملية للبناء البرمجي الكامل أو للنشر على استضافة مشتركة.

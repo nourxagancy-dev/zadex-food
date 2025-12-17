@@ -1,0 +1,9 @@
+{
+  "name": "Zadex Menu",
+  "short_name": "Menu",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0a1f",
+  "theme_color": "#7c3aed",
+  "icons": []
+}
